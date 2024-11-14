@@ -13,6 +13,10 @@
 #define NUM_SOLUTIONS 2315
 #define MAX_POSSIBLE MAX_WORDS
 
+// Forward declarations
+void getPattern(const char* guess, const char* target, char* pattern);
+int patternToIndex(const char* pattern);
+double calculateEntropyFast(int wordIdx);
 
 typedef struct {
     int gamesPlayed;
@@ -35,29 +39,29 @@ typedef struct {
 } EntropyCache;
 
 
-// 1. 更新前向声明
-// 在头部的Forward declarations部分替换为：
-void getPattern(const char* guess, const char* target, char* pattern);
-int patternToIndex(const char* pattern);
-double calculateEntropy(const char* word);
-char* findBestGuess(int remainingAttempts);
-
-// 2. 移除不需要的全局变量和结构体
-// 移除 EntropyCache 相关的定义和变量
-// 移除 cacheSize 变量
-// 保留必要的全局变量:
+// 全局变量
 WordMask wordMasks[MAX_WORDS];
-int patterns[MAX_WORDS][MAX_WORDS];
+int patterns[MAX_WORDS][MAX_WORDS];  // 预计算的模式
+EntropyCache entropyCache[MAX_WORDS];
+int cacheSize = 0;
+int useOptimizedVersion = 0;  // 0 for normal, 1 for optimized
+// 最优起始词序列
+const char* BEST_OPENERS[] = {
+    "CRANE", "SLATE", "TRACE", "SLANT", "PARSE"
+};
+
+// Global variables
 char wordList[MAX_WORDS][WORD_LEN + 1];
 char solutions[NUM_SOLUTIONS][WORD_LEN + 1];
 char solution[WORD_LEN + 1];
 int numWords = 0;
 int numSolutions = 0;
 int patternFreq[PATTERN_SIZE];
-char* possibleSolutions[MAX_WORDS];
+char* possibleSolutions[MAX_WORDS];  // 扩大数组大小
 int numPossible = 0;
-int useOptimizedVersion = 0;
 Statistics stats;
+
+// Letter position weights
 double letterWeights[26][WORD_LEN] = {0};
 
 
@@ -124,31 +128,21 @@ double getCachedEntropy(const char* word) {
     return entropy;
 }
 
-// 修改评分函数，使用纯信息熵策略
-double scoreWordFast(const char* word, int remainingAttempts) {
-    double entropy = calculateEntropyFast(word);
+// 优化的熵计算
+double calculateEntropyFast(int wordIdx) {
+    memset(patternFreq, 0, sizeof(patternFreq));
     
-    // 如果在可能答案中且剩余候选较少，给予额外分数
-    if(numPossible <= 10) {
-        for(int i = 0; i < numPossible; i++) {
-            if(strcmp(word, possibleSolutions[i]) == 0) {
-                entropy *= 1.1;  // 10% bonus
+    for(int i = 0; i < numPossible; i++) {
+        int targetIdx = -1;
+        for(int j = 0; j < numWords; j++) {
+            if(wordList[j] == possibleSolutions[i]) {
+                targetIdx = j;
                 break;
             }
         }
-    }
-    
-    return entropy;
-}
-
-// 优化的熵计算函数
-double calculateEntropyFast(const char* word) {
-    memset(patternFreq, 0, sizeof(patternFreq));
-    char pattern[WORD_LEN + 1];
-    
-    for(int i = 0; i < numPossible; i++) {
-        getPattern(word, possibleSolutions[i], pattern);
-        patternFreq[patternToIndex(pattern)]++;
+        if(targetIdx != -1) {
+            patternFreq[getPatternFast(wordIdx, targetIdx)]++;
+        }
     }
     
     double entropy = 0.0;
@@ -162,69 +156,64 @@ double calculateEntropyFast(const char* word) {
     return entropy;
 }
 
+// 优化的评分函数
+double scoreWordFast(const char* word, int remainingAttempts) {
+    double score = getCachedEntropy(word);
+    
+    if(numPossible > 10) {
+        double weightScore = 0;
+        for(int i = 0; i < WORD_LEN; i++) {
+            weightScore += letterWeights[word[i] - 'A'][i];
+        }
+        score += weightScore * 0.1;
+    }
+    
+    if(numPossible <= 10) {
+        for(int i = 0; i < numPossible; i++) {
+            if(strcmp(word, possibleSolutions[i]) == 0) {
+                score += 0.2;
+                break;
+            }
+        }
+    }
+    
+    return score;
+}
+
 // 优化的最佳猜测函数
 char* findBestGuessFast(int remainingAttempts) {
     static char bestGuess[WORD_LEN + 1];
     double bestScore = -1;
     
-    // 第一次猜测使用最优起始词
+    // 使用最优起始序列
     if(numPossible == numSolutions) {
-        return "CRANE";
+        for(int i = 0; i < sizeof(BEST_OPENERS)/sizeof(BEST_OPENERS[0]); i++) {
+            double score = scoreWordFast(BEST_OPENERS[i], remainingAttempts);
+            if(score > bestScore) {
+                bestScore = score;
+                strcpy(bestGuess, BEST_OPENERS[i]);
+            }
+        }
+        if(bestScore > -1) {
+            return bestGuess;
+        }
+        return "CRANE";  // 默认起始词
     }
     
-    // 如果只剩1-2个答案，直接返回第一个
-    if(numPossible <= 2) {
-        return possibleSolutions[0];
-    }
+    if(numPossible == 2) return possibleSolutions[0];
     
-    // 根据剩余可能答案数量决定搜索范围
-    int searchLimit;
-    const char** searchSpace;
-    
-    if(numPossible > 100) {
-        searchLimit = numWords;
-        searchSpace = (const char**)wordList;
-    } else {
-        searchLimit = numPossible;
-        searchSpace = (const char**)possibleSolutions;
-    }
-    
-    // 评分并找出最佳猜测
+    // 动态搜索范围
+    int searchLimit = (numPossible > 1000) ? numSolutions : numWords;
     for(int i = 0; i < searchLimit; i++) {
-        double score = scoreWordFast(searchSpace[i], remainingAttempts);
+        double score = scoreWordFast(wordList[i], remainingAttempts);
         if(score > bestScore) {
             bestScore = score;
-            strcpy(bestGuess, searchSpace[i]);
+            strcpy(bestGuess, wordList[i]);
         }
     }
     
+    printf("Cache size: %d\n", cacheSize);
     return bestGuess;
-}
-
-// 优化的更新可能答案函数
-void updatePossibleSolutions(const char* guess, const char* result) {
-    int newCount = 0;
-    char pattern[WORD_LEN + 1];
-    char* newPossible[NUM_SOLUTIONS];
-    
-    // 更新可能答案列表
-    for(int i = 0; i < numPossible; i++) {
-        getPattern(guess, possibleSolutions[i], pattern);
-        if(strcmp(pattern, result) == 0) {
-            newPossible[newCount++] = possibleSolutions[i];
-        }
-    }
-    
-    // 防止可能答案为空
-    if(newCount == 0) {
-        return;  // 保持原有可能答案不变
-    }
-    
-    // 更新可能答案
-    for(int i = 0; i < newCount; i++) {
-        possibleSolutions[i] = newPossible[i];
-    }
-    numPossible = newCount;
 }
 
 void loadWords() {
@@ -385,6 +374,25 @@ char* findBestGuess(int remainingAttempts) {
     return bestGuess;
 }
 
+void updatePossibleSolutions(const char* guess, const char* result) {
+    int newCount = 0;
+    char pattern[WORD_LEN + 1];
+    char* newPossible[NUM_SOLUTIONS];
+    
+    for(int i = 0; i < numPossible; i++) {
+        getPattern(guess, possibleSolutions[i], pattern);
+        if(strcmp(pattern, result) == 0) {
+            newPossible[newCount] = possibleSolutions[i];
+            newCount++;
+        }
+    }
+    
+    for(int i = 0; i < newCount; i++) {
+        possibleSolutions[i] = newPossible[i];
+    }
+    
+    numPossible = newCount;
+}
 
 void initGame(int gameMode) {
     switch(gameMode) {
