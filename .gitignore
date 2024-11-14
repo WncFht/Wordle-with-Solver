@@ -1,0 +1,76 @@
+# Compilers
+*.o
+*.obj
+*.exe
+*.dll
+*.a
+*.lib
+
+# Preprocessor
+*.d
+*.h.gch
+
+# Compiled Object files
+*.slo
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran compile track files
+*.mod
+*.stb
+*.o
+
+# Static library files
+.a
+.lib
+
+# Project files
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+*.suo
+
+# Others
+*.bak
+*.tmp
+*.log
+*.swp
+*~ 
+
+# IDEs
+.DS_Store
+Thumbs.db
+.gitkeep
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+
+# Visual Studio filter files
+*.vs/
+
+# Dependency directory
+vendor/
+node_modules/
+
+# Other IDEs
+.project
+.idea/
+*.iml
+
+# Ignore files and folders that are in the root of the repository
+*.log
+*.err
+
+# Ignore files and folders that are in the root of the repository
+*.log
+*.err
+
+# Comment for future reference
+# Add any other files or patterns that should be ignored here
+
+.vscode/
