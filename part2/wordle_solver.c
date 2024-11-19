@@ -1,243 +1,643 @@
-
-// wordle_solver.c
-#include "wordle_solver.h"
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include <time.h>
+#include <ctype.h>
+#include <stdint.h>  // Added for uint32_t
 
 #define MAX_WORDS 15000
+#define WORD_LEN 5
+#define MAX_ATTEMPTS 10
+#define PATTERN_SIZE 243
+#define NUM_SOLUTIONS 2315
+#define MAX_POSSIBLE MAX_WORDS
 
-// 存储单词和状态
-static char all_words[MAX_WORDS][WORD_LENGTH + 1];
-static char possible_words[MAX_WORDS][WORD_LENGTH + 1];
-static int word_count = 0;
-static int possible_count = 0;
-static char previous_guesses[6][WORD_LENGTH + 1];
-static int guess_count = 0;
+// Forward declarations
+void getPattern(const char* guess, const char* target, char* pattern);
+int patternToIndex(const char* pattern);
+double calculateEntropyFast(int wordIdx);
 
-// 最佳初始单词列表
-static const char* FIRST_WORDS[] = {
-    "SALET", "CRANE", "TRACE", "SLATE", "CRATE"
+typedef struct {
+    int gamesPlayed;
+    int gamesWon;
+    double averageAttempts;
+    int attemptDistribution[MAX_ATTEMPTS + 1];
+    int totalScore;
+    clock_t totalTime;
+} Statistics;
+
+typedef struct {
+    uint32_t mask;     // Letter existence bitmask
+    uint32_t pos[26];  // Position bitmask for each letter
+} WordMask;
+
+typedef struct {
+    int word_index;
+    double entropy;
+    int possible_count;
+} EntropyCache;
+
+
+// 全局变量
+WordMask wordMasks[MAX_WORDS];
+int patterns[MAX_WORDS][MAX_WORDS];  // 预计算的模式
+EntropyCache entropyCache[MAX_WORDS];
+int cacheSize = 0;
+int useOptimizedVersion = 0;  // 0 for normal, 1 for optimized
+// 最优起始词序列
+const char* BEST_OPENERS[] = {
+    "CRANE", "SLATE", "TRACE", "SLANT", "PARSE"
 };
 
-// 最佳第二轮单词列表（根据第一轮反馈选择）
-static const char* SECOND_WORDS[] = {
-    "ROUND", "PILOT", "BUNCH", "CLOUD", "HUMID"
-};
+// Global variables
+char wordList[MAX_WORDS][WORD_LEN + 1];
+char solutions[NUM_SOLUTIONS][WORD_LEN + 1];
+char solution[WORD_LEN + 1];
+int numWords = 0;
+int numSolutions = 0;
+int patternFreq[PATTERN_SIZE];
+char* possibleSolutions[MAX_WORDS];  // 扩大数组大小
+int numPossible = 0;
+Statistics stats;
 
-// 计算词中字母的频率
-static void get_letter_freq(double freq[26]) {
-    memset(freq, 0, sizeof(double) * 26);
-    for(int i = 0; i < possible_count; i++) {
-        for(int j = 0; j < WORD_LENGTH; j++) {
-            freq[possible_words[i][j] - 'A'] += 1.0 / possible_count;
+// Letter position weights
+double letterWeights[26][WORD_LEN] = {0};
+
+
+// 预计算所有单词的掩码
+void precomputeWordMasks() {
+    for(int i = 0; i < numWords; i++) {
+        wordMasks[i].mask = 0;
+        memset(wordMasks[i].pos, 0, sizeof(wordMasks[i].pos));
+        
+        for(int j = 0; j < WORD_LEN; j++) {
+            int letter = wordList[i][j] - 'A';
+            wordMasks[i].mask |= (1 << letter);
+            wordMasks[i].pos[letter] |= (1 << j);
         }
     }
 }
 
-// 检查是否已经猜过这个词
-static int is_word_guessed(const char* word) {
-    for(int i = 0; i < guess_count; i++) {
-        if(strcmp(previous_guesses[i], word) == 0) {
-            return 1;
+// 预计算所有模式
+void precomputePatterns() {
+    for(int i = 0; i < numWords; i++) {
+        for(int j = 0; j < numWords; j++) {
+            char pattern[WORD_LEN + 1];
+            getPattern(wordList[i], wordList[j], pattern);
+            patterns[i][j] = patternToIndex(pattern);
         }
     }
-    return 0;
 }
 
-// 计算两个单词的匹配模式
-static void get_pattern(const char* word, const char* guess, char* pattern) {
-    int letter_count[26] = {0};
-    int used[WORD_LENGTH] = {0};
-    
-    // 统计字母出现次数
-    for(int i = 0; i < WORD_LENGTH; i++) {
-        letter_count[word[i] - 'A']++;
-    }
-    
-    // 标记绿色(G)
-    for(int i = 0; i < WORD_LENGTH; i++) {
-        if(guess[i] == word[i]) {
-            pattern[i] = 'G';
-            used[i] = 1;
-            letter_count[guess[i] - 'A']--;
-        } else {
-            pattern[i] = 'B';
-        }
-    }
-    
-    // 标记黄色(Y)
-    for(int i = 0; i < WORD_LENGTH; i++) {
-        if(!used[i] && letter_count[guess[i] - 'A'] > 0) {
-            pattern[i] = 'Y';
-            letter_count[guess[i] - 'A']--;
-        }
-    }
-    pattern[WORD_LENGTH] = '\0';
+// 优化的getPattern实现
+int getPatternFast(int guessIdx, int targetIdx) {
+    return patterns[guessIdx][targetIdx];
 }
 
-// 更新可能的单词列表
-static void update_possible_words(const char* guess, const char* feedback) {
-    char pattern[WORD_LENGTH + 1];
-    int new_count = 0;
-    
-    for(int i = 0; i < possible_count; i++) {
-        get_pattern(possible_words[i], guess, pattern);
-        if(strcmp(pattern, feedback) == 0) {
-            if(new_count != i) {
-                strcpy(possible_words[new_count], possible_words[i]);
-            }
-            new_count++;
-        }
-    }
-    possible_count = new_count;
-}
-
-// 计算单词的得分
-static double evaluate_word(const char* word, const char* feedback, double letter_freq[26]) {
-    // 如果单词已经猜过，返回最低分
-    if(is_word_guessed(word)) {
-        return -1000.0;
-    }
-    
-    int positions[26][WORD_LENGTH] = {0};  // 记录每个字母在每个位置的出现次数
-    double position_scores[WORD_LENGTH] = {0.0};  // 每个位置的得分
-    
-    // 统计位置信息
-    for(int i = 0; i < possible_count; i++) {
-        for(int j = 0; j < WORD_LENGTH; j++) {
-            positions[possible_words[i][j] - 'A'][j]++;
-        }
-    }
-    
-    // 计算位置得分
-    for(int i = 0; i < WORD_LENGTH; i++) {
-        position_scores[i] = (double)positions[word[i] - 'A'][i] / possible_count;
-    }
-    
-    // 计算总得分
-    double score = 0.0;
-    int used_letters[26] = {0};
-    int unique_letters = 0;
-    
-    for(int i = 0; i < WORD_LENGTH; i++) {
-        int letter = word[i] - 'A';
-        score += letter_freq[letter] * (1.0 + position_scores[i]);
-        if(!used_letters[letter]) {
-            used_letters[letter] = 1;
-            unique_letters++;
-        }
-    }
-    
-    // 奖励唯一字母
-    score *= (1.0 + 0.2 * unique_letters);
-    
-    // 如果是可能的答案，增加得分
-    for(int i = 0; i < possible_count; i++) {
-        if(strcmp(word, possible_words[i]) == 0) {
-            score *= 1.5;
+// 使用缓存的熵计算
+double getCachedEntropy(const char* word) {
+    int wordIdx = -1;
+    // 找到word在wordList中的索引
+    for(int i = 0; i < numWords; i++) {
+        if(strcmp(word, wordList[i]) == 0) {
+            wordIdx = i;
             break;
+        }
+    }
+
+    // 检查缓存
+    for(int i = 0; i < cacheSize; i++) {
+        if(entropyCache[i].word_index == wordIdx && 
+           entropyCache[i].possible_count == numPossible) {
+            return entropyCache[i].entropy;
+        }
+    }
+
+    // 计算新的熵值
+    double entropy = calculateEntropyFast(wordIdx);
+
+    // 更新缓存
+    if(cacheSize < MAX_WORDS) {
+        entropyCache[cacheSize].word_index = wordIdx;
+        entropyCache[cacheSize].entropy = entropy;
+        entropyCache[cacheSize].possible_count = numPossible;
+        cacheSize++;
+    }
+
+    return entropy;
+}
+
+// 优化的熵计算
+double calculateEntropyFast(int wordIdx) {
+    memset(patternFreq, 0, sizeof(patternFreq));
+    
+    for(int i = 0; i < numPossible; i++) {
+        int targetIdx = -1;
+        for(int j = 0; j < numWords; j++) {
+            if(wordList[j] == possibleSolutions[i]) {
+                targetIdx = j;
+                break;
+            }
+        }
+        if(targetIdx != -1) {
+            patternFreq[getPatternFast(wordIdx, targetIdx)]++;
+        }
+    }
+    
+    double entropy = 0.0;
+    for(int i = 0; i < PATTERN_SIZE; i++) {
+        if(patternFreq[i] > 0) {
+            double prob = (double)patternFreq[i] / numPossible;
+            entropy -= prob * log2(prob);
+        }
+    }
+    
+    return entropy;
+}
+
+// 优化的评分函数
+double scoreWordFast(const char* word, int remainingAttempts) {
+    double score = getCachedEntropy(word);
+    
+    if(numPossible > 10) {
+        double weightScore = 0;
+        for(int i = 0; i < WORD_LEN; i++) {
+            weightScore += letterWeights[word[i] - 'A'][i];
+        }
+        score += weightScore * 0.1;
+    }
+    
+    if(numPossible <= 10) {
+        for(int i = 0; i < numPossible; i++) {
+            if(strcmp(word, possibleSolutions[i]) == 0) {
+                score += 0.2;
+                break;
+            }
         }
     }
     
     return score;
 }
 
-// 获取最佳猜测
-static char* get_best_guess(const char* feedback) {
-    static char best_word[WORD_LENGTH + 1];
-    double best_score = -1000.0;
-    double letter_freq[26];
+// 优化的最佳猜测函数
+char* findBestGuessFast(int remainingAttempts) {
+    static char bestGuess[WORD_LEN + 1];
+    double bestScore = -1;
     
-    // 第一次猜测使用预定义的最佳起始词
-    if(!feedback || strcmp(feedback, "BBBBB") == 0) {
-        strcpy(best_word, FIRST_WORDS[guess_count % 5]);
-        return best_word;
-    }
-    
-    // 如果只剩一个可能答案，直接返回
-    if(possible_count == 1) {
-        strcpy(best_word, possible_words[0]);
-        return best_word;
-    }
-    
-    // 如果是第二次猜测，使用预定义的第二轮单词
-    if(guess_count == 1) {
-        // 根据第一轮反馈选择合适的第二轮单词
-        for(int i = 0; i < 5; i++) {
-            if(!is_word_guessed(SECOND_WORDS[i])) {
-                strcpy(best_word, SECOND_WORDS[i]);
-                return best_word;
+    // 使用最优起始序列
+    if(numPossible == numSolutions) {
+        for(int i = 0; i < sizeof(BEST_OPENERS)/sizeof(BEST_OPENERS[0]); i++) {
+            double score = scoreWordFast(BEST_OPENERS[i], remainingAttempts);
+            if(score > bestScore) {
+                bestScore = score;
+                strcpy(bestGuess, BEST_OPENERS[i]);
             }
+        }
+        if(bestScore > -1) {
+            return bestGuess;
+        }
+        return "CRANE";  // 默认起始词
+    }
+    
+    if(numPossible == 2) return possibleSolutions[0];
+    
+    // 动态搜索范围
+    int searchLimit = (numPossible > 1000) ? numSolutions : numWords;
+    for(int i = 0; i < searchLimit; i++) {
+        double score = scoreWordFast(wordList[i], remainingAttempts);
+        if(score > bestScore) {
+            bestScore = score;
+            strcpy(bestGuess, wordList[i]);
         }
     }
     
-    // 计算当前字母频率
-    get_letter_freq(letter_freq);
-    
-    // 如果剩余可能答案较少，只从可能答案中选择
-    if(possible_count <= 10) {
-        for(int i = 0; i < possible_count; i++) {
-            double score = evaluate_word(possible_words[i], feedback, letter_freq);
-            if(score > best_score) {
-                best_score = score;
-                strcpy(best_word, possible_words[i]);
-            }
-        }
-        return best_word;
-    }
-    
-    // 评估所有单词
-    #pragma omp parallel for
-    for(int i = 0; i < word_count; i++) {
-        double score = evaluate_word(all_words[i], feedback, letter_freq);
-        #pragma omp critical
-        {
-            if(score > best_score) {
-                best_score = score;
-                strcpy(best_word, all_words[i]);
-            }
-        }
-    }
-    
-    return best_word;
+    printf("Cache size: %d\n", cacheSize);
+    return bestGuess;
 }
 
-void init_solver(const char* filename) {
-    FILE* fp = fopen(filename, "r");
-    if(!fp) return;
-    
-    word_count = 0;
-    char word[100];
-    
-    while(fgets(word, sizeof(word), fp) && word_count < MAX_WORDS) {
-        word[strcspn(word, "\n")] = 0;
-        if(strlen(word) == WORD_LENGTH) {
-            for(int i = 0; word[i]; i++) {
-                word[i] = toupper(word[i]);
-            }
-            strcpy(all_words[word_count], word);
-            strcpy(possible_words[word_count], word);
-            word_count++;
-        }
+void loadWords() {
+    FILE* fp = fopen("wordList.txt", "r");
+    if (!fp) {
+        printf("Error: Cannot open wordList.txt\n");
+        exit(1);
     }
-    possible_count = word_count;
+    
+    while (fscanf(fp, "%s", wordList[numWords]) != EOF && numWords < MAX_WORDS) {
+        for (int i = 0; wordList[numWords][i]; i++) {
+            wordList[numWords][i] = toupper(wordList[numWords][i]);
+        }
+        numWords++;
+    }
     fclose(fp);
-    
-    // 初始化猜测历史
-    guess_count = 0;
-    memset(previous_guesses, 0, sizeof(previous_guesses));
+
+    fp = fopen("solutions.txt", "r");
+    if (!fp) {
+        printf("Warning: solutions.txt not found, using first %d words from wordList.txt\n", NUM_SOLUTIONS);
+        memcpy(solutions, wordList, sizeof(char) * NUM_SOLUTIONS * (WORD_LEN + 1));
+        numSolutions = NUM_SOLUTIONS;
+    } else {
+        while (fscanf(fp, "%s", solutions[numSolutions]) != EOF && numSolutions < NUM_SOLUTIONS) {
+            for (int i = 0; solutions[numSolutions][i]; i++) {
+                solutions[numSolutions][i] = toupper(solutions[numSolutions][i]);
+            }
+            numSolutions++;
+        }
+        fclose(fp);
+    }
+    printf("Loaded %d total words and %d solutions\n", numWords, numSolutions);
 }
 
-char* player_optimal(const char lastResult[WORD_LENGTH + 1]) {
-    char* guess = get_best_guess(lastResult);
+void calculateLetterWeights() {
+    memset(letterWeights, 0, sizeof(letterWeights));
+    for (int i = 0; i < numSolutions; i++) {
+        for (int j = 0; j < WORD_LEN; j++) {
+            letterWeights[solutions[i][j] - 'A'][j] += 1.0 / numSolutions;
+        }
+    }
+}
+
+int patternToIndex(const char* pattern) {
+    int index = 0;
+    for(int i = 0; i < WORD_LEN; i++) {
+        index = index * 3 + (pattern[i] == 'G' ? 2 : pattern[i] == 'Y' ? 1 : 0);
+    }
+    return index;
+}
+
+void getPattern(const char* guess, const char* target, char* pattern) {
+    int letterCount[26] = {0};
+    int used[WORD_LEN] = {0};
+    memset(pattern, 'B', WORD_LEN);
+    pattern[WORD_LEN] = '\0';
     
-    if(lastResult[0] != 'B' || lastResult[1] != 'B') {
-        update_possible_words(previous_guesses[guess_count-1], lastResult);
+    // Count letters in target
+    for(int i = 0; i < WORD_LEN; i++) {
+        letterCount[target[i] - 'A']++;
     }
     
-    strcpy(previous_guesses[guess_count], guess);
-    guess_count++;
+    // Mark greens first
+    for(int i = 0; i < WORD_LEN; i++) {
+        if(guess[i] == target[i]) {
+            pattern[i] = 'G';
+            used[i] = 1;
+            letterCount[guess[i] - 'A']--;
+        }
+    }
     
-    return guess;
+    // Then mark yellows
+    for(int i = 0; i < WORD_LEN; i++) {
+        if(!used[i] && letterCount[guess[i] - 'A'] > 0) {
+            pattern[i] = 'Y';
+            letterCount[guess[i] - 'A']--;
+        }
+    }
+}
+
+double calculateEntropy(const char* word) {
+    memset(patternFreq, 0, sizeof(patternFreq));
+    char pattern[WORD_LEN + 1];
+    
+    for(int i = 0; i < numPossible; i++) {
+        getPattern(word, possibleSolutions[i], pattern);
+        patternFreq[patternToIndex(pattern)]++;
+    }
+    
+    double entropy = 0.0;
+    for(int i = 0; i < PATTERN_SIZE; i++) {
+        if(patternFreq[i] > 0) {
+            double prob = (double)patternFreq[i] / numPossible;
+            entropy -= prob * log2(prob);
+        }
+    }
+    
+    return entropy;
+}
+
+double scoreWord(const char* word, int remainingAttempts) {
+    double score = calculateEntropy(word);
+    
+    if(numPossible > 10) {
+        double weightScore = 0;
+        for(int i = 0; i < WORD_LEN; i++) {
+            weightScore += letterWeights[word[i] - 'A'][i];
+        }
+        score += weightScore * 0.1;
+    }
+    
+    if(numPossible <= 10) {
+        for(int i = 0; i < numPossible; i++) {
+            if(strcmp(word, possibleSolutions[i]) == 0) {
+                score += 0.2;
+                break;
+            }
+        }
+    }
+    
+    if(remainingAttempts <= 2 && numPossible <= 50) {
+        for(int i = 0; i < numPossible; i++) {
+            if(strcmp(word, possibleSolutions[i]) == 0) {
+                score *= 2.0;
+                break;
+            }
+        }
+    }
+    
+    return score;
+}
+
+char* findBestGuess(int remainingAttempts) {
+    static char bestGuess[WORD_LEN + 1];
+    double bestScore = -1;
+    
+    if(numPossible == numSolutions) return "CRANE";
+    if(numPossible == 2) return possibleSolutions[0];
+    
+    if(numPossible > 10) {
+        for(int i = 0; i < numWords; i++) {
+            double score = scoreWord(wordList[i], remainingAttempts);
+            if(score > bestScore) {
+                bestScore = score;
+                strcpy(bestGuess, wordList[i]);
+            }
+        }
+    } else {
+        for(int i = 0; i < numPossible; i++) {
+            double score = scoreWord(possibleSolutions[i], remainingAttempts);
+            if(score > bestScore) {
+                bestScore = score;
+                strcpy(bestGuess, possibleSolutions[i]);
+            }
+        }
+    }
+    
+    return bestGuess;
+}
+
+void updatePossibleSolutions(const char* guess, const char* result) {
+    int newCount = 0;
+    char pattern[WORD_LEN + 1];
+    char* newPossible[NUM_SOLUTIONS];
+    
+    for(int i = 0; i < numPossible; i++) {
+        getPattern(guess, possibleSolutions[i], pattern);
+        if(strcmp(pattern, result) == 0) {
+            newPossible[newCount] = possibleSolutions[i];
+            newCount++;
+        }
+    }
+    
+    for(int i = 0; i < newCount; i++) {
+        possibleSolutions[i] = newPossible[i];
+    }
+    
+    numPossible = newCount;
+}
+
+void initGame(int gameMode) {
+    switch(gameMode) {
+        case 1: // Random words from solutions
+        case 4: // Standard Wordle test
+        case 3: // Single word test
+            numPossible = numSolutions;
+            for(int i = 0; i < numSolutions; i++) {
+                possibleSolutions[i] = solutions[i];
+            }
+            break;
+            
+        case 2: // All words test - use full wordlist
+            numPossible = numWords;
+            for(int i = 0; i < numWords; i++) {
+                possibleSolutions[i] = wordList[i];
+            }
+            break;
+    }
+}
+
+int calculateScore(int attempts) {
+    if (attempts > MAX_ATTEMPTS) return 0;
+    return 11 - attempts;
+}
+
+void resetStats() {
+    memset(&stats, 0, sizeof(stats));
+    cacheSize = 0;
+}
+
+void updateStats(int attempts) {
+    stats.gamesPlayed++;
+    if (attempts <= MAX_ATTEMPTS) {
+        stats.gamesWon++;
+        stats.attemptDistribution[attempts-1]++;
+        stats.averageAttempts = (stats.averageAttempts * (stats.gamesWon-1) + attempts) / stats.gamesWon;
+        stats.totalScore += calculateScore(attempts);
+    }
+}
+
+int playGame(int verbose, int gameMode) {
+    char result[WORD_LEN + 1];
+    char* guess;
+    int attempts = 0;
+    clock_t gameStart = clock();
+    
+    initGame(gameMode);
+    
+    while(attempts < MAX_ATTEMPTS) {
+        // 根据选择使用不同的函数
+        guess = useOptimizedVersion ? 
+            findBestGuessFast(MAX_ATTEMPTS - attempts) : 
+            findBestGuess(MAX_ATTEMPTS - attempts);
+        
+        if(verbose) {
+            printf("Guess %d: %s\n", attempts + 1, guess);
+            printf("Possible solutions remaining: %d\n", numPossible);
+            if(numPossible <= 10) {
+                printf("Remaining words: ");
+                for(int i = 0; i < numPossible; i++) {
+                    printf("%s ", possibleSolutions[i]);
+                }
+                printf("\n");
+            }
+        }
+        
+        getPattern(guess, solution, result);
+        if(verbose) printf("Result: %s\n", result);
+        
+        if(strcmp(result, "GGGGG") == 0) {
+            stats.totalTime += clock() - gameStart;
+            return attempts + 1;
+        }
+        
+        updatePossibleSolutions(guess, result);
+        attempts++;
+    }
+    
+    stats.totalTime += clock() - gameStart;
+    return MAX_ATTEMPTS + 1;
+}
+
+void printStats() {
+    printf("\n=== Final Statistics ===\n");
+    printf("Games Played: %d\n", stats.gamesPlayed);
+    printf("Win Rate: %.2f%%\n", (double)stats.gamesWon/stats.gamesPlayed*100);
+    printf("Average Attempts: %.2f\n", stats.averageAttempts);
+    printf("Total Score: %d\n", stats.totalScore);
+    printf("Average Score per Game: %.2f\n", (double)stats.totalScore/stats.gamesPlayed);
+    printf("\nAttempt Distribution:\n");
+    for (int i = 0; i < MAX_ATTEMPTS; i++) {
+        printf("%d attempts: %d (%.2f%%) - %d points each\n", 
+               i+1, 
+               stats.attemptDistribution[i],
+               (double)stats.attemptDistribution[i]/stats.gamesPlayed*100,
+               calculateScore(i+1));
+    }
+    printf("Failed: %d (%.2f%%) - 0 points\n", 
+           stats.gamesPlayed - stats.gamesWon,
+           (double)(stats.gamesPlayed - stats.gamesWon)/stats.gamesPlayed*100);
+    printf("Average Time: %.3f seconds\n", 
+           (double)stats.totalTime/CLOCKS_PER_SEC/stats.gamesPlayed);
+    printf("\nAlgorithm version: %s\n", 
+            useOptimizedVersion ? "Optimized" : "Normal");
+}
+
+// 修改main函数
+int main() {
+    loadWords();
+    calculateLetterWeights();
+    precomputeWordMasks();
+    precomputePatterns();
+    srand(time(NULL));
+    
+    char continueRunning = 'y';
+    while(continueRunning == 'y' || continueRunning == 'Y') {
+        resetStats();  // 重置统计数据
+        
+        printf("\nUse optimized version? (0 for normal, 1 for optimized): ");
+        scanf("%d", &useOptimizedVersion);
+        
+        int testMode;
+        printf("\nSelect test mode:\n");
+        printf("1. Test specific number of random words from solution set\n");
+        printf("2. Test all valid words\n");
+        printf("3. Test single word\n");
+        printf("4. Test all standard Wordle solutions (2315 words)\n");
+        scanf("%d", &testMode);
+        
+        clock_t startTime = clock();
+    
+        switch(testMode) {
+            case 1: {
+                int numTests;
+                printf("Enter number of words to test: ");
+                scanf("%d", &numTests);
+                numTests = (numTests > numSolutions) ? numSolutions : numTests;
+                
+                for (int i = 0; i < numTests; i++) {
+                    int wordIdx = rand() % numSolutions;
+                    strcpy(solution, solutions[wordIdx]);
+                    int attempts = playGame(0, testMode);
+                    updateStats(attempts);
+                    
+                    if ((i+1) % 100 == 0)
+                        printf("Completed %d words...\n", i+1);
+                }
+                break;
+            }
+            case 2: {
+                printf("Testing all %d valid words...\n", numWords);
+                for (int i = 0; i < numWords; i++) {
+                    strcpy(solution, wordList[i]);
+                    int attempts = playGame(0, testMode);
+                    updateStats(attempts);
+                    printf(solution);
+                    printf("Score for this word: %d\n", calculateScore(attempts));
+                    if ((i+1) % 100 == 0)
+                        printf("Completed %d words...\n", i+1);
+                }
+                break;
+            }
+            case 3: {
+                char testWord[WORD_LEN + 1];
+                printf("Enter word to test: ");
+                scanf("%s", testWord);
+                for (int i = 0; testWord[i]; i++)
+                    testWord[i] = toupper(testWord[i]);
+                    
+                // Validate input word
+                int valid = 0;
+                for (int i = 0; i < numWords; i++) {
+                    if (strcmp(testWord, wordList[i]) == 0) {
+                        valid = 1;
+                        break;
+                    }
+                }
+                
+                if (!valid) {
+                    printf("Invalid word: Not in word list\n");
+                    return 1;
+                }
+                
+                strcpy(solution, testWord);
+                int attempts = playGame(1, testMode);
+                updateStats(attempts);
+                printf("Score for this word: %d\n", calculateScore(attempts));
+                break;
+            }
+            case 4: {
+                printf("Testing all %d standard Wordle solutions...\n", numSolutions);
+                printf("This may take a few minutes...\n");
+                
+                for (int i = 0; i < numSolutions; i++) {
+                    strcpy(solution, solutions[i]);
+                    int attempts = playGame(0, testMode);
+                    updateStats(attempts);
+                    // printf("Score for this word: %d\n", calculateScore(attempts));
+                    if ((i+1) % 100 == 0) {
+                            printf("Completed %d words... ", i+1);
+                            printf("Current Average: %.2f\n", stats.averageAttempts);
+                        }
+                }
+                break;
+            }
+            default: {
+                printf("Invalid test mode selected\n");
+                return 1;
+            }
+        }
+    
+        stats.totalTime = clock() - startTime;
+        printStats();
+
+        // Additional statistics for standard mode
+        if (testMode == 4) {
+            printf("\nDetailed Performance Analysis:\n");
+            printf("Best possible score: %d\n", stats.gamesPlayed * 10);
+            printf("Actual score: %d\n", stats.totalScore);
+            printf("Efficiency: %.2f%%\n", 
+                (double)stats.totalScore/(stats.gamesPlayed * 10) * 100);
+            
+            int score_distribution[11] = {0};  // 0-10 points
+            for (int i = 0; i < MAX_ATTEMPTS; i++) {
+                score_distribution[calculateScore(i+1)] += stats.attemptDistribution[i];
+            }
+            score_distribution[0] = stats.gamesPlayed - stats.gamesWon;
+            
+            printf("\nScore Distribution:\n");
+            for (int i = 10; i >= 0; i--) {
+                if (score_distribution[i] > 0) {
+                    printf("%2d points: %4d words (%.2f%%)\n", 
+                        i, 
+                        score_distribution[i],
+                        (double)score_distribution[i]/stats.gamesPlayed*100);
+                }
+            }
+        }
+    
+        printf("\nDo you want to continue testing? (y/n): ");
+        while(getchar() != '\n');  // 清除输入缓冲
+        scanf("%c", &continueRunning);
+    }
+    
+    printf("Thank you for using the Wordle solver!\n");
+    return 0;
 }
