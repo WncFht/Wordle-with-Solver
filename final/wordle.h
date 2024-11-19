@@ -26,5 +26,9 @@ void generate_feedback(const char* solution, const char* guess, char* feedback);
 // Example player implementations
 char* player_input(const char lastResult[WORD_LENGTH + 1]);  // Human player
 char* player_random(const char lastResult[WORD_LENGTH + 1]); // Random guessing
+char* player_AI(const char lastResult[WORD_LENGTH + 1]); 
+char* player_entropy(const char lastResult[WORD_LENGTH + 1]); 
+char* player_minimax(const char lastResult[WORD_LENGTH + 1]);
+char* player_frequency(const char lastResult[WORD_LENGTH + 1]);
 
 #endif // WORDLE_H

@@ -7,8 +7,8 @@
 
 // 增加词表大小
 #define MAX_WORDS 15000
-static char word_list[MAX_WORDS][WORD_LENGTH + 1];
-static int word_count = 0;
+char word_list[MAX_WORDS][WORD_LENGTH + 1];
+int word_count = 0;
 
 int load_word_list(const char* filename) {
     FILE* fp = fopen(filename, "r");

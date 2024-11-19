@@ -18,7 +18,7 @@ int main(int argc, char* argv[]) {
     srand(time(NULL));
     
     // Load word list with error reporting
-    int loaded_words = load_word_list("wordlist.txt");
+    int loaded_words = load_word_list("wordList.txt");
     if (loaded_words == 0) {
         printf("Error: Could not load word list\n");
         return 1;
@@ -34,7 +34,7 @@ int main(int argc, char* argv[]) {
     print_instructions();
     
     // Start game with human player
-    wordle(solution, player_input);
+    wordle(solution, player_entropy);
     
     return 0;
 }
