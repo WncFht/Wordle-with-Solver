@@ -144,6 +144,21 @@ The program consists of several key components:
 **Remember to move the wordlists.txt to the right position.**
 ---
 
+#### Just in Console
+
+```
+gcc -o wordle ./main.c ./players.c ./wordle.c ./wordle.h
+./wordle
+```
+
+And you can modify the code in main to test different players.
+
+```
+// Start game with different players.
+// TEST HERE!!!
+wordle(solution, player_input);
+```
+
 #### Ubuntu
 
 1. **Install Required Tools**:

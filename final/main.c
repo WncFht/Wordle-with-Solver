@@ -33,7 +33,8 @@ int main(int argc, char* argv[]) {
     
     print_instructions();
     
-    // Start game with human player
+    // Start game with different players.
+    // TEST HERE!!!
     wordle(solution, player_input);
     
     return 0;
