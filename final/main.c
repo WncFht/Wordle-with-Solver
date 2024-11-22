@@ -35,7 +35,7 @@ int main(int argc, char* argv[]) {
     
     // Start game with different players.
     // TEST HERE!!!
-    wordle(solution, player_input);
+    wordle(solution, player_entropy);
     
     return 0;
 }

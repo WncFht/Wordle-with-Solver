@@ -28,6 +28,23 @@ extern char word_list[MAX_WORDS][WORD_LENGTH + 1];
 extern int word_count;
 
 // 辅助函数实现
+int is_valid_word(const char* word) {
+    if (strlen(word) != WORD_LENGTH) return 0;
+    
+    char upper_word[WORD_LENGTH + 1];
+    strcpy(upper_word, word);
+    for (int i = 0; upper_word[i]; i++) {
+        upper_word[i] = toupper(upper_word[i]);
+    }
+    
+    for (int i = 0; i < word_count; i++) {
+        if (strcmp(word_list[i], upper_word) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static void to_uppercase(char* str) {
     for (int i = 0; str[i]; i++) {
         str[i] = toupper(str[i]);
@@ -78,24 +95,48 @@ static void update_solutions(const char* guess, const char* feedback) {
     
     int new_count = 0;
     for (int i = 0; i < solution_count; i++) {
-        char test_feedback[WORD_LENGTH + 1];
-        generate_feedback(possible_solutions[i], guess, test_feedback);
+        // 修改这部分
+        char* test_feedback = checkWord(possible_solutions[i], guess);
+        if (!test_feedback) {
+            // 处理内存分配失败
+            for (int j = 0; j < solution_count; j++) free(temp[j]);
+            free(temp);
+            return;
+        }
         if (strcmp(test_feedback, feedback) == 0) {
             strcpy(temp[new_count++], possible_solutions[i]);
         }
+        free(test_feedback);  // 释放动态分配的内存
     }
     
-    // 更新候选列表
     for (int i = 0; i < new_count; i++) {
         strcpy(possible_solutions[i], temp[i]);
     }
     solution_count = new_count;
     
-    // 清理临时空间
     for (int i = 0; i < solution_count; i++) {
         free(temp[i]);
     }
     free(temp);
+}
+
+static void generate_pattern_counts(const char* word, int* pattern_counts) {
+    memset(pattern_counts, 0, PATTERN_COUNT * sizeof(int));
+    
+    for (int i = 0; i < solution_count; i++) {
+        // 修改这部分
+        char* test_feedback = checkWord(possible_solutions[i], word);
+        if (!test_feedback) continue;  // 处理内存分配失败
+        
+        int pattern_index = 0;
+        for (int j = 0; j < WORD_LENGTH; j++) {
+            pattern_index = pattern_index * 3 + 
+                (test_feedback[j] == 'G' ? 2 : 
+                 test_feedback[j] == 'Y' ? 1 : 0);
+        }
+        pattern_counts[pattern_index]++;
+        free(test_feedback);  // 释放动态分配的内存
+    }
 }
 
 void cleanup_ai(void) {
@@ -118,23 +159,6 @@ static float calculate_entropy(const char* word, int* pattern_counts) {
         }
     }
     return entropy;
-}
-
-static void generate_pattern_counts(const char* word, int* pattern_counts) {
-    memset(pattern_counts, 0, PATTERN_COUNT * sizeof(int));
-    
-    for (int i = 0; i < solution_count; i++) {
-        char test_feedback[WORD_LENGTH + 1];
-        generate_feedback(possible_solutions[i], word, test_feedback);
-        
-        int pattern_index = 0;
-        for (int j = 0; j < WORD_LENGTH; j++) {
-            pattern_index = pattern_index * 3 + 
-                (test_feedback[j] == 'G' ? 2 : 
-                 test_feedback[j] == 'Y' ? 1 : 0);
-        }
-        pattern_counts[pattern_index]++;
-    }
 }
 
 // 玩家实现

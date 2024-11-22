@@ -8,29 +8,15 @@
 
 // Player function type - takes last result, returns next guess
 typedef char* (*Player)(const char lastResult[WORD_LENGTH + 1]);
+char* checkWord(const char solution[WORD_LENGTH + 1], const char guess[WORD_LENGTH + 1]);
 
 // 全局变量声明
 extern char wordList[MAX_WORDS][WORD_LENGTH + 1];
 extern char solutions[MAX_WORDS][WORD_LENGTH + 1];
-// extern char* possibleSolutions[MAX_WORDS];
-// extern int numWords;
-// extern int numSolutions;
-// extern int numPossible;
-// extern int firstGuess; 
+
 
 // 函数声明
-void generate_feedback(const char* solution, const char* guess, char* feedback);
-// void updatePossibleSolutions(const char* guess, const char* feedback);
-// void getPattern(const char* guess, const char* target, char* pattern);
-// void initGame(int gameMode);
-// char* findBestGuess(int remainingAttempts);
-// void loadWords();
-// void calculateLetterWeights();
-// void precomputeWordMasks();
-// void precomputePatterns();
-// void runAlgorithmTest();
 int load_word_list(const char* filename);
-int is_valid_word(const char* word);
 char* get_random_word(void);
 
 // 核心游戏函数

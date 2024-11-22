@@ -62,7 +62,7 @@ The program consists of several key components:
 - Reads the `wordList.txt` file and loads words into memory.
 - Validates word length and ensures all words are uppercase.
 
-#### b. `generate_feedback` (in `wordle.c`)
+#### b. `checkWord` (in `wordle.c`)
 - Compares the guessed word to the solution.
 - Assigns feedback (`G`, `Y`, `B`) for each letter based on its position and presence in the solution.
 
