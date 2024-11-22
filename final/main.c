@@ -28,13 +28,13 @@ int main(int argc, char* argv[]) {
     char* solution = get_random_word();
     if (!solution) {
         printf("Error: Could not get random word\n");
-        return 1;
+        return 1;               
     }
     
     print_instructions();
     
     // Start game with human player
-    wordle(solution, player_entropy);
+    wordle(solution, player_input);
     
     return 0;
 }

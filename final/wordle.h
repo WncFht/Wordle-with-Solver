@@ -3,29 +3,42 @@
 #define WORDLE_H
 
 #define WORD_LENGTH 5
-#define MAX_ROUNDS 10
+#define MAX_WORDS 15000
+#define MAX_ROUNDS 6
 
 // Player function type - takes last result, returns next guess
 typedef char* (*Player)(const char lastResult[WORD_LENGTH + 1]);
 
-// Core game function
-void wordle(const char solution[WORD_LENGTH + 1], Player player);
+// 全局变量声明
+extern char wordList[MAX_WORDS][WORD_LENGTH + 1];
+extern char solutions[MAX_WORDS][WORD_LENGTH + 1];
+// extern char* possibleSolutions[MAX_WORDS];
+// extern int numWords;
+// extern int numSolutions;
+// extern int numPossible;
+// extern int firstGuess; 
 
-// Word validation
-int is_valid_word(const char* word);
-
-// Load word list from file
+// 函数声明
+void generate_feedback(const char* solution, const char* guess, char* feedback);
+// void updatePossibleSolutions(const char* guess, const char* feedback);
+// void getPattern(const char* guess, const char* target, char* pattern);
+// void initGame(int gameMode);
+// char* findBestGuess(int remainingAttempts);
+// void loadWords();
+// void calculateLetterWeights();
+// void precomputeWordMasks();
+// void precomputePatterns();
+// void runAlgorithmTest();
 int load_word_list(const char* filename);
-
-// Get random word from loaded list
+int is_valid_word(const char* word);
 char* get_random_word(void);
 
-// Helper function to generate feedback
-void generate_feedback(const char* solution, const char* guess, char* feedback);
+// 核心游戏函数
+void wordle(const char solution[WORD_LENGTH + 1], Player player);
 
-// Example player implementations
-char* player_input(const char lastResult[WORD_LENGTH + 1]);  // Human player
-char* player_random(const char lastResult[WORD_LENGTH + 1]); // Random guessing
+// 示例玩家实现
+char* player_input(const char lastResult[WORD_LENGTH + 1]);  // 人类玩家
+char* player_random(const char lastResult[WORD_LENGTH + 1]); // 随机猜测
 char* player_AI(const char lastResult[WORD_LENGTH + 1]); 
 char* player_entropy(const char lastResult[WORD_LENGTH + 1]); 
 char* player_minimax(const char lastResult[WORD_LENGTH + 1]);
