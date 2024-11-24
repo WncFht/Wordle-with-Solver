@@ -45,11 +45,11 @@ extern int wordCount;
 //     return 0;
 // }
 
-// static void to_uppercase(char* str) {
-//     for (int i = 0; str[i]; i++) {
-//         str[i] = toupper(str[i]);
-//     }
-// }
+static void to_uppercase(char* str) {
+    for (int i = 0; str[i]; i++) {
+        str[i] = toupper(str[i]);
+    }
+}
 
 static void init_possible_solutions(void) {
     if (possible_solutions != NULL) {
@@ -215,13 +215,15 @@ static float calculate_entropy(int* pattern_counts) {
 //     return random_guess;
 // }
 
-char* player_AI(const char lastResult[WORD_LENGTH + 1]) {
-    static char guess[WORD_LENGTH + 1];
+char* player_AI1(const char lastResult[WORD_LENGTH + 1]) {
+    char* guess = (char*)malloc(WORD_LENGTH + 1);
+    if (!guess) return NULL;
     
+    printf("Last result: %s\n", lastResult);
     // 初始化
     if (!possible_solutions) {
         init_possible_solutions();
-        strcpy(guess, "STARE");  // 经验验证的最优起始词
+        strcpy(guess, "STARE");  // 使用 STARE 作为固定的起始词
         strcpy(last_guess, guess);
         return guess;
     }
@@ -236,9 +238,10 @@ char* player_AI(const char lastResult[WORD_LENGTH + 1]) {
             strcpy(last_guess, guess);
             return guess;
         } else if (solution_count == 0) {
+            // 不直接返回 NULL，而是重新初始化
             cleanup_ai();
             init_possible_solutions();
-            strcpy(guess, "STARE");
+            strcpy(guess, "STARE");  // 重新从起始词开始
             strcpy(last_guess, guess);
             return guess;
         }
@@ -252,33 +255,65 @@ char* player_AI(const char lastResult[WORD_LENGTH + 1]) {
         return guess;
     }
     
-    // 计算最佳猜测
     float max_entropy = -1.0f;
-    for (int i = 0; i < wordCount; i++) {
-        generate_pattern_counts(wordList[i], pattern_counts);
-        float entropy = calculate_entropy(pattern_counts);
+    const char* best_word = NULL;
+    
+    if (solution_count <= 2) {
+        // 当剩余可能解很少时，直接从中选择
+        strcpy(guess, possible_solutions[0]);
+    } else {
+        // 遍历所有单词寻找最优猜测
+        for (int i = 0; i < wordCount; i++) {
+            generate_pattern_counts(wordList[i], pattern_counts);
+            float entropy = calculate_entropy(pattern_counts);
+            
+            // 优化：考虑字母位置的匹配情况
+            if (lastResult && *lastResult) {
+                float position_bonus = 0.0f;
+                for (int j = 0; j < WORD_LENGTH; j++) {
+                    if (lastResult[j] == 'G' && wordList[i][j] == last_guess[j]) {
+                        position_bonus += 0.3f;  // 已确认位置的权重
+                    }
+                    if (lastResult[j] == 'Y' && wordList[i][j] != last_guess[j]) {
+                        for (int k = 0; k < WORD_LENGTH; k++) {
+                            if (k != j && wordList[i][k] == last_guess[j]) {
+                                position_bonus += 0.2f;  // 已知字母但位置不同的权重
+                                break;
+                            }
+                        }
+                    }
+                }
+                entropy += position_bonus;
+            }
+            
+            // 如果该词在可能解中，给予额外权重
+            for (int j = 0; j < solution_count; j++) {
+                if (strcmp(wordList[i], possible_solutions[j]) == 0) {
+                    entropy += 0.1f;  // 可能解的额外权重
+                    break;
+                }
+            }
+            
+            if (entropy > max_entropy) {
+                max_entropy = entropy;
+                best_word = wordList[i];
+            }
+        }
         
-        if (entropy > max_entropy) {
-            max_entropy = entropy;
-            strcpy(best_guess_buffer, wordList[i]);
+        if (best_word) {
+            strcpy(guess, best_word);
+        } else {
+            strcpy(guess, possible_solutions[0]);
         }
     }
     
     free(pattern_counts);
     
-    // 选择最终猜测
-    if (max_entropy > -1.0f) {
-        strcpy(guess, best_guess_buffer);
-    } else {
-        strcpy(guess, possible_solutions[0]);
-    }
-    
     strcpy(last_guess, guess);
     printf("Selected guess: %s (entropy: %.2f)\n", guess, max_entropy);
     return guess;
 }
-
-// char* player_minimax(const char lastResult[WORD_LENGTH + 1]) {
+// char* player_AI3(const char lastResult[WORD_LENGTH + 1]) {
 //     static char guess[WORD_LENGTH + 1];
 //     static char best_guess[WORD_LENGTH + 1];
     
@@ -421,160 +456,120 @@ char* player_AI(const char lastResult[WORD_LENGTH + 1]) {
 //     return guess;
 // }
 
-// char* player_two_step(const char lastResult[WORD_LENGTH + 1]) {
-//     static char guess[WORD_LENGTH + 1];
-//     static char best_guess[WORD_LENGTH + 1];
-    
-//     // 初始化
-//     if (!possible_solutions) {
-//         init_possible_solutions();
-//         strcpy(guess, "STARE");  // 保持相同的起始词
-//         strcpy(last_guess, guess);
-//         return guess;
-//     }
-    
-//     // 处理上一次猜测的结果
-//     if (lastResult && *lastResult) {
-//         update_solutions(last_guess, lastResult);
-//         printf("Remaining possible solutions: %d\n", solution_count);
-        
-//         if (solution_count == 1) {
-//             strcpy(guess, possible_solutions[0]);
-//             strcpy(last_guess, guess);
-//             return guess;
-//         } else if (solution_count == 0) {
-//             cleanup_ai();
-//             init_possible_solutions();
-//             strcpy(guess, "STARE");
-//             strcpy(last_guess, guess);
-//             return guess;
-//         }
-//     }
-    
-//     // 分配模式计数数组
-//     int* pattern_counts = (int*)calloc(PATTERN_COUNT, sizeof(int));
-//     if (!pattern_counts) {
-//         strcpy(guess, possible_solutions[0]);
-//         strcpy(last_guess, guess);
-//         return guess;
-//     }
+#define MAX_LINE_LENGTH 256
+#define MAX_LINES 10000
 
-//     // 计算最佳猜测 (两步预测)
-//     float max_combined_score = -1.0f;
-    
-//     // 第一步: 遍历所有可能的首次猜测
-//     for (int i = 0; i < wordCount; i++) {
-//         // 计算第一步的信息熵
-//         generate_pattern_counts(wordList[i], pattern_counts);
-//         float first_entropy = calculate_entropy(pattern_counts);
+static char** decision_lines = NULL;
+static int line_count = 0;
+static char current_word[6] = "SALET";
+static bool first_guess = true;
+static char cumulative_pattern[MAX_LINE_LENGTH] = "";  // 累积的pattern串
+
+static void load_decision_tree(void) {
+    static bool loaded = false;
+    if (loaded) return;
+
+    FILE* file = fopen("tree.txt", "r");
+    if (!file) {
+        printf("Failed to open tree.txt\n");
+        return;
+    }
+
+    decision_lines = (char**)malloc(MAX_LINES * sizeof(char*));
+    if (!decision_lines) {
+        fclose(file);
+        return;
+    }
+
+    char line[MAX_LINE_LENGTH];
+    while (fgets(line, sizeof(line), file) && line_count < MAX_LINES) {
+        line[strcspn(line, "\n")] = 0;
         
-//         // 计算第二步的期望信息熵
-//         float expected_second_entropy = 0.0f;
-//         int total_patterns = 0;
+        decision_lines[line_count] = strdup(line);
+        if (!decision_lines[line_count]) {
+            for (int i = 0; i < line_count; i++) {
+                free(decision_lines[i]);
+            }
+            free(decision_lines);
+            decision_lines = NULL;
+            fclose(file);
+            return;
+        }
         
-//         // 对每个可能的反馈模式
-//         for (int pattern = 0; pattern < PATTERN_COUNT; pattern++) {
-//             if (pattern_counts[pattern] > 0) {
-//                 // 创建临时的可能解集合
-//                 char** temp_solutions = (char**)malloc(solution_count * sizeof(char*));
-//                 if (!temp_solutions) continue;
-                
-//                 for (int j = 0; j < solution_count; j++) {
-//                     temp_solutions[j] = (char*)malloc((WORD_LENGTH + 1) * sizeof(char));
-//                     if (!temp_solutions[j]) {
-//                         for (int k = 0; k < j; k++) free(temp_solutions[k]);
-//                         free(temp_solutions);
-//                         continue;
-//                     }
-//                 }
-                
-//                 // 填充符合当前模式的解
-//                 int temp_count = 0;
-//                 for (int j = 0; j < solution_count; j++) {
-//                     char* test_feedback = checkWord(possible_solutions[j], wordList[i]);
-//                     if (!test_feedback) continue;
-                    
-//                     int test_pattern = 0;
-//                     for (int k = 0; k < WORD_LENGTH; k++) {
-//                         test_pattern = test_pattern * 3 + 
-//                             (test_feedback[k] == 'G' ? 2 : 
-//                              test_feedback[k] == 'Y' ? 1 : 0);
-//                     }
-                    
-//                     if (test_pattern == pattern) {
-//                         strcpy(temp_solutions[temp_count++], possible_solutions[j]);
-//                     }
-//                     free(test_feedback);
-//                 }
-                
-//                 // 计算这种模式下第二步的最大熵
-//                 float max_second_entropy = -1.0f;
-//                 for (int j = 0; j < wordCount; j++) {
-//                     int* temp_pattern_counts = (int*)calloc(PATTERN_COUNT, sizeof(int));
-//                     if (!temp_pattern_counts) continue;
-                    
-//                     // 统计在这个子集上的模式分布
-//                     for (int k = 0; k < temp_count; k++) {
-//                         char* test_feedback = checkWord(temp_solutions[k], wordList[j]);
-//                         if (!test_feedback) continue;
-                        
-//                         int test_pattern = 0;
-//                         for (int m = 0; m < WORD_LENGTH; m++) {
-//                             test_pattern = test_pattern * 3 + 
-//                                 (test_feedback[m] == 'G' ? 2 : 
-//                                  test_feedback[m] == 'Y' ? 1 : 0);
-//                         }
-//                         temp_pattern_counts[test_pattern]++;
-//                         free(test_feedback);
-//                     }
-                    
-//                     // 计算这个猜测在当前子集上的熵
-//                     float second_entropy = 0.0f;
-//                     for (int k = 0; k < PATTERN_COUNT; k++) {
-//                         if (temp_pattern_counts[k] > 0) {
-//                             float p = (float)temp_pattern_counts[k] / temp_count;
-//                             second_entropy -= p * log2f(p);
-//                         }
-//                     }
-                    
-//                     if (second_entropy > max_second_entropy) {
-//                         max_second_entropy = second_entropy;
-//                     }
-                    
-//                     free(temp_pattern_counts);
-//                 }
-                
-//                 // 加权平均
-//                 float pattern_prob = (float)pattern_counts[pattern] / solution_count;
-//                 expected_second_entropy += pattern_prob * max_second_entropy;
-//                 total_patterns++;
-                
-//                 // 清理临时解集
-//                 for (int j = 0; j < solution_count; j++) {
-//                     free(temp_solutions[j]);
-//                 }
-//                 free(temp_solutions);
-//             }
-//         }
-        
-//         // 将第一步和预期第二步的信息结合起来评分
-//         float combined_score = first_entropy + 0.5f * expected_second_entropy;
-//         if (combined_score > max_combined_score) {
-//             max_combined_score = combined_score;
-//             strcpy(best_guess, wordList[i]);
-//         }
-//     }
+        // printf("Loaded line %d: %s\n", line_count, decision_lines[line_count]);
+        line_count++;
+    }
+
+    fclose(file);
+    loaded = true;
+    printf("Loaded %d decision lines\n", line_count);
+}
+
+static const char* find_next_move(const char* feedback, int level) {
+    // 在累积pattern末尾追加新pattern
+    char new_pattern[32];
+    sprintf(new_pattern, "%s %s%d ", current_word, feedback, level);
+    strcat(cumulative_pattern, new_pattern);
     
-//     free(pattern_counts);
+    printf("Looking for pattern: '%s'\n", cumulative_pattern);
     
-//     // 使用最佳猜测
-//     if (max_combined_score > -1.0f) {
-//         strcpy(guess, best_guess);
-//     } else {
-//         strcpy(guess, possible_solutions[0]);
-//     }
+    // 查找匹配的行
+    for (int i = 0; i < line_count; i++) {
+        // printf("Comparing with line %d: %s\n", i, decision_lines[i]);
+        if (strstr(decision_lines[i], cumulative_pattern) == decision_lines[i]) {
+            // 提取下一个单词
+            const char* line = decision_lines[i] + strlen(cumulative_pattern);
+            char next_word[WORD_LENGTH + 1];
+            if (sscanf(line, "%5s", next_word) == 1) {
+                printf("Found next word: %s in line: %s\n", next_word, decision_lines[i]);
+                return strdup(next_word);
+            }
+        }
+    }
     
-//     strcpy(last_guess, guess);
-//     printf("Selected guess: %s (combined score: %.2f)\n", guess, max_combined_score);
-//     return guess;
-// }
+    printf("No matching move found\n");
+    return NULL;
+}
+
+char* player_AI2(const char lastResult[WORD_LENGTH + 1]) {
+    load_decision_tree();
+    // printf("Last result: %s\n", lastResult);
+    char* guess = malloc(WORD_LENGTH + 1);
+    if (!guess) return NULL;
+
+    bool is_first_guess = true;
+    for (int i = 0; i < WORD_LENGTH; i++) {
+        if (lastResult[i] != ' ') {
+            is_first_guess = false;
+            break;
+        }
+    }
+
+    if (is_first_guess) {
+        // printf("First guess: SALET\n");
+        strcpy(guess, "SALET");
+        strcpy(current_word, "SALET");
+        cumulative_pattern[0] = '\0';  // 清空累积pattern
+        return guess;
+    }
+
+    printf("Current word: %s\n", current_word);
+    // printf("Last result: %s\n", lastResult);
+
+    // 通过累积pattern的长度/状态计算level
+    int level = 1;
+    for (char* p = cumulative_pattern; *p; p++) {
+        if (*p >= '1' && *p <= '9') level++;
+    }
+
+    const char* next = find_next_move(lastResult, level);
+    if (next) {
+        strcpy(guess, next);
+        strcpy(current_word, next);
+        free((void*)next);
+        return guess;
+    }
+
+    free(guess);
+    return NULL;
+}

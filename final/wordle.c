@@ -7,30 +7,30 @@
 
 
 // 增加词表大小
-char word_list[MAX_WORDS][WORD_LENGTH + 1];
-int word_count = 0;
+char wordList[MAX_WORDS][WORD_LENGTH + 1];
+int wordCount = 0;
 
-int load_word_list(const char* filename) {
+int load_wordList(const char* filename) {
     FILE* fp = fopen(filename, "r");
     if (!fp) return 0;  
     
-    word_count = 0;
+    wordCount = 0;
     char word[100];
     
-    while (fgets(word, sizeof(word), fp) && word_count < MAX_WORDS) {
+    while (fgets(word, sizeof(word), fp) && wordCount < MAX_WORDS) {
         // Remove newline and convert to uppercase
         word[strcspn(word, "\n")] = 0;
         if (strlen(word) == WORD_LENGTH) {
             for (int i = 0; word[i]; i++) {
-                word_list[word_count][i] = toupper(word[i]);
+                wordList[wordCount][i] = toupper(word[i]);
             }
-            word_list[word_count][WORD_LENGTH] = '\0';
-            word_count++;
+            wordList[wordCount][WORD_LENGTH] = '\0';
+            wordCount++;
         }
     }
     
     fclose(fp);
-    return word_count;
+    return wordCount;
 }
 
 char* checkWord(const char solution[WORD_LENGTH + 1], const char guess[WORD_LENGTH + 1]) {
@@ -107,6 +107,6 @@ void wordle(const char solution[WORD_LENGTH + 1], Player player) {
 }
 
 char* get_random_word(void) {
-    if (word_count == 0) return NULL;
-    return word_list[rand() % word_count];
+    if (wordCount == 0) return NULL;
+    return wordList[rand() % wordCount];
 }

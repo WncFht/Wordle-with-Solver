@@ -16,7 +16,7 @@ extern char solutions[MAX_WORDS][WORD_LENGTH + 1];
 
 
 // 函数声明
-int load_word_list(const char* filename);
+int load_wordList(const char* filename);
 char* get_random_word(void);
 
 // 核心游戏函数
@@ -29,5 +29,5 @@ char* player_AI(const char lastResult[WORD_LENGTH + 1]);
 char* player_entropy(const char lastResult[WORD_LENGTH + 1]); 
 char* player_minimax(const char lastResult[WORD_LENGTH + 1]);
 char* player_frequency(const char lastResult[WORD_LENGTH + 1]);
-
+char* player_two_step(const char lastResult[WORD_LENGTH + 1]);
 #endif // WORDLE_H
