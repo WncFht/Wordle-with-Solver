@@ -13,18 +13,6 @@ typedef char* (*Player)(const char lastResult[WORD_LENGTH + 1]);
 char* checkWord(const char solution[WORD_LENGTH + 1], const char guess[WORD_LENGTH + 1]);
 void wordle(const char solution[WORD_LENGTH + 1], Player *player);
 
-extern char wordList[MAX_WORDS][WORD_LENGTH + 1];
-extern int wordCount;
-extern char solutionList[SOLUTION_LENGTH][WORD_LENGTH + 1];
-extern int solutionCount;
-
-
-void loadWords(const char* filename);
-void loadSolution(const char* filename);
-char* checkWord(const char solution[WORD_LENGTH + 1], const char guess[WORD_LENGTH + 1]);
-void wordle(const char solution[WORD_LENGTH + 1], Player *player);
-
-
 bool not_legal(const char* guess);
 bool invalid(const char* solution);
 // You can define more functions here

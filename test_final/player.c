@@ -7,10 +7,6 @@
 #include <math.h>
 #include "wordle.h"
 
-
-extern char wordList[MAX_WORDS][WORD_LENGTH + 1];
-extern int wordCount;
-
 #define MAX_LINE_LENGTH 256
 #define MAX_LINES 10000
 
