@@ -8,7 +8,7 @@ def format_decision_tree(input_file, output_file):
     """
     # Read from file
     with open(input_file, 'r') as f:
-        lines = [line.rstrip().upper() for line in f if line.strip()]
+        lines = [line.rstrip() for line in f if line.strip()]
     
     # Process each line
     formatted_lines = []
@@ -35,4 +35,4 @@ def format_decision_tree(input_file, output_file):
         f.write('\n'.join(formatted_lines))
 
 # Process the tree
-format_decision_tree('tree.txt', 'tree_plus.txt')
+format_decision_tree('tree1.txt', 'tree_plus.txt')
