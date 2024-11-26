@@ -35,4 +35,4 @@ def format_decision_tree(input_file, output_file):
         f.write('\n'.join(formatted_lines))
 
 # Process the tree
-format_decision_tree('tree1.txt', 'tree_plus.txt')
+format_decision_tree('tree_base.txt', 'tree_l.txt')

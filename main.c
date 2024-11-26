@@ -24,7 +24,7 @@ int main() {
     }
     
     // Set player strategy and start game
-    Player player = player_AI2;
+    Player player = player_frequency;
     wordle(solution, &player);
     return 0;
 }

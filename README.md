@@ -5,26 +5,38 @@ This is a comprehensive implementation of the Wordle word-guessing game, featuri
 
 ## Features
 - Multiple AI solving strategies:
-  - Information entropy based approach
-  - Minimax optimization
-  - Letter frequency analysis
-  - Decision tree based solution
-  - Random guessing
+  - Information entropy based approach (fully functional)
+  - Decision tree based solution (fully functional)
+  - Letter frequency analysis (under maintenance)
+  - Minimax optimization (under maintenance)
 - Human player interface
 - Automated testing framework
 - Performance statistics collection
 - Comprehensive word validation
-- Memory-safe implementation
+- Performance visualization
 
 ## File Structure
-- `wordle.h/c`: Core game engine and mechanics
-- `player.h/c`: Player strategy implementations
-- `main.c`: Basic game runner
-- `main_plus.c`: Advanced testing framework
-- Required data files:
-  - `wordList.txt`: Dictionary of valid words
-  - `tree.txt`: Decision tree for AI strategy
-  - `solutionList.txt`: List of possible solutions
+```
+/
+├── Core Game Files
+│   ├── wordle.h/c          # Core game engine and mechanics
+│   ├── player.h/c          # Player strategy implementations
+│   └── Makefile            # Build configuration
+├── Main Programs
+│   ├── main.c             # Basic game runner
+│   ├── main_plus.c        # Advanced testing framework
+│   └── main_all.c         # Full solution test framework
+├── Data Files
+│   ├── wordList.txt       # Dictionary of valid words
+│   ├── solutionList.txt   # List of possible solutions
+│   ├── tree_base.txt      # Base decision tree for AI
+│   ├── tree_l.txt         # Lowercase version of tree
+│   └── tree_u.txt         # Uppercase version of tree
+└── Visualization
+    ├── graph.py           # Performance visualization script
+    ├── guess_distribution.pdf   # Distribution visualization
+    └── performance_metrics.pdf  # Metrics comparison
+```
 
 ## Setup
 1. Clone the repository
@@ -40,7 +52,10 @@ This is a comprehensive implementation of the Wordle word-guessing game, featuri
    ```bash
    gcc -o wordle_test main_plus.c wordle.c player.c -lm
    ```
-
+   Or for all words:
+    ```bash
+   gcc -o wordle_all main_all.c wordle.c player.c -lm
+   ```
 ## Usage
 ### Basic Game
 ```bash
@@ -53,6 +68,23 @@ Enter a 5-letter word when prompted.
 ./wordle_test
 ```
 This will run 30 test cases and provide performance statistics.
+
+### Full Solution Test
+```bash
+./wordle_all
+```
+This will test all possible solutions with the selected strategy and provide:
+- Success rate statistics
+- Score distribution 
+- Guess distribution
+- Time performance metrics
+- Detailed progress monitoring
+
+### Strategy Selection
+In `main`, select the strategy by modifying:
+```c
+Player player = player_entropy;  // or player_AI
+```
 
 ## AI Strategies
 
@@ -76,16 +108,28 @@ This will run 30 test cases and provide performance statistics.
 - Uses pre-computed optimal move sequences
 - Starts with "SALET" as first guess
 - Most deterministic approach
-- Requires `tree.txt` file
+- Requires `tree_u.txt` file
 
-## Testing Framework
-The testing system (`main_plus.c`) provides:
-- Random solution selection
-- Success rate calculation
-- Average score tracking
-- Average guesses needed
-- Intermediate progress reports
-- Detailed final statistics
+Note: The frequency-based and minimax strategies are currently under maintenance and will be available in future updates.
+
+## Testing Framework Details
+
+The main_all.c testing framework provides:
+- Complete solution space testing
+- Progress monitoring (every 100 words)
+- Time estimation
+- Detailed performance metrics
+- Distribution analysis
+
+Example output format:
+```
+Test 1/2315: APPLE - Score: 8, Guesses: 3
+...
+Intermediate results after 100 words:
+Time elapsed: 43.21 seconds
+Average time per word: 0.432 seconds
+...
+```
 
 ## Performance Metrics
 The testing framework tracks:
@@ -93,19 +137,6 @@ The testing framework tracks:
 - Average score (0-10 points per puzzle)
 - Average number of guesses needed
 - Failed attempts analysis
-
-## Note
-- All words are processed in uppercase
-- Dictionary words must be 5 letters
-- Maximum 10 guesses per game
-- Memory is managed carefully throughout
-
-## Future Improvements
-- Add more AI strategies
-- Implement parallel testing
-- Enhance decision tree generation
-- Add visualization tools
-- Improve error handling
 
 ## Decision Tree AI Strategy (player_AI)
 The `player_AI` implementation uses a sophisticated decision tree approach that follows pre-computed optimal move sequences based on previous feedback patterns.
@@ -152,19 +183,59 @@ Each line represents:
 - Fixed initial strategy
 - Limited adaptation to unknown patterns
 
-### Performance
-- Average success rate: ~100%
-- Average guesses: .42
-- Best case: 1 guess
-- Worst case: 5 guesses
+### Performance Compared
 
+#### One-Layer-Entropy AI
 
-## Customization
+```
+Final Test Summary:
+Total time: 1001.03 seconds
+Average time per word: 0.432 seconds
+Total words: 2315
+Successful tests: 2315
+Success rate: 100.00%
+Average score: 6.76
+Average guesses: 4.24
 
-- **Add More Words**: Modify or replace `wordList.txt` with your custom list of valid 5-letter words.
-- **Modify Game Rules**: Change constants in `wordle.h` (e.g., word length, maximum attempts).
-- **Experiment with AI**: Extend or replace AI strategies in `players.c`.
+Guess Distribution:
+1 guesses: 1 words (0.04%)
+2 guesses: 11 words (0.48%)
+3 guesses: 332 words (14.34%)
+4 guesses: 1194 words (51.58%)
+5 guesses: 660 words (28.51%)
+6 guesses: 109 words (4.71%)
+7 guesses: 7 words (0.30%)
+8 guesses: 0 words (0.00%)
+9 guesses: 1 words (0.04%)
+10 guesses: 0 words (0.00%)
+```
 
+#### Decision-Tree-Based AI
+
+```
+Final Test Summary:
+Total time: 1.25 seconds
+Average time per word: 0.001 seconds
+Total words: 2315
+Successful tests: 2315
+Success rate: 100.00%
+Average score: 7.58
+Average guesses: 3.42
+
+Guess Distribution:
+1 guesses: 0 words (0.00%)
+2 guesses: 78 words (3.37%)
+3 guesses: 1225 words (52.92%)
+4 guesses: 971 words (41.94%)
+5 guesses: 41 words (1.77%)
+6 guesses: 0 words (0.00%)
+7 guesses: 0 words (0.00%)
+8 guesses: 0 words (0.00%)
+9 guesses: 0 words (0.00%)
+10 guesses: 0 words (0.00%)
+```
+## Note
+The current version focuses on the **entropy-based** and **decision tree** approaches. Other strategies (frequency and minimax) are being updated for improved performance and will be available in future releases.
 
 ## License
 
