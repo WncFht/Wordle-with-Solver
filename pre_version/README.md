@@ -133,7 +133,6 @@ salet BBBBB1 courd BBBBB2 nymph BGYYB3 pygmy GGGGG4
 salet BBBBB1 courd BBBBB2 nymph BYBBB3 fizzy GGGGG4
 salet BBBBB1 courd BBBBB2 nymph BYBBB3 fizzy YGBBG4 jiffy GGGGG5
 ...
-...
 ```
 Each line represents:
 - Words played in sequence
