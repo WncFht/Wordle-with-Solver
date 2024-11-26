@@ -205,3 +205,10 @@ bool invalid(const char* solution) {
     printf("Solution is not in the solution list\n");
     return true;
 }
+
+/**
+ * Gets a random word from the dictionary
+ */
+char* get_random_word(void) {
+    return wordList[rand() % wordCount];
+}

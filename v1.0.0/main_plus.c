@@ -15,7 +15,7 @@
 #include <time.h>
 #include <stdlib.h>
 
-#define TEST_CASES 30  // Number of test cases to run
+#define TEST_CASES 1000  // Number of test cases to run
 
 /**
  * Structure to store results of each test case
@@ -138,7 +138,7 @@ int main() {
     int successful_tests = 0;
     
     // Select player strategy
-    Player player = player_AI2;
+    Player player = player_AI;
     printf("\nStarting %d test cases...\n", TEST_CASES);
     
     // Run test cases

@@ -372,7 +372,7 @@ char* player_frequency(const char lastResult[WORD_LENGTH + 1]) {
  * @param lastResult Feedback from previous guess
  * @return Best guess based on minimax strategy
  */
-char* player_mimmax(const char lastResult[WORD_LENGTH + 1]) {
+char* player_minimax(const char lastResult[WORD_LENGTH + 1]) {
     static char guess[WORD_LENGTH + 1];
     static char best_guess[WORD_LENGTH + 1];
     
@@ -586,7 +586,7 @@ static void load_decision_tree(void) {
     static bool loaded = false;
     if (loaded) return;
 
-    FILE* file = fopen("tree.txt", "r");
+    FILE* file = fopen("tree_u.txt", "r");
     if (!file) {
         printf("Failed to open tree.txt\n");
         return;
