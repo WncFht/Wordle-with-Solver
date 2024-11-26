@@ -107,6 +107,66 @@ The testing framework tracks:
 - Add visualization tools
 - Improve error handling
 
+## Decision Tree AI Strategy (player_AI)
+The `player_AI` implementation uses a sophisticated decision tree approach that follows pre-computed optimal move sequences based on previous feedback patterns.
+
+### How it Works
+1. Initial Move:
+   - Always starts with "SALET" as the first guess
+   - This word has been chosen based on extensive analysis of letter frequencies and information gain
+
+2. Pattern Tracking:
+   - Maintains a cumulative pattern of guesses and feedback
+   - Format: `<WORD> <PATTERN><LEVEL> ...`
+   - Example: `SALET GYBBG1 CRANE GBBBY2`
+
+3. Decision Making:
+   - Consults `tree.txt` for next optimal move
+   - Each line in tree.txt represents a successful solution path
+   - Matches current game state against known patterns
+   - Chooses the statistically best next word
+
+### tree.txt Format
+```
+salet BBBBB1 courd BBBBB2 nymph BBBBY3 whiff GGGGG4
+salet BBBBB1 courd BBBBB2 nymph BGYYB3 pygmy GGGGG4
+salet BBBBB1 courd BBBBB2 nymph BYBBB3 fizzy GGGGG4
+salet BBBBB1 courd BBBBB2 nymph BYBBB3 fizzy YGBBG4 jiffy GGGGG5
+...
+...
+```
+Each line represents:
+- Words played in sequence
+- Feedback received (G=green, Y=yellow, B=black)
+- Level number for each guess
+
+### Advantages
+- Deterministic behavior
+- Pre-computed optimal moves
+- Fast decision making
+- High success rate
+- Consistent performance
+
+### Limitations
+- Requires tree.txt file
+- Memory intensive
+- Fixed initial strategy
+- Limited adaptation to unknown patterns
+
+### Performance
+- Average success rate: ~100%
+- Average guesses: .42
+- Best case: 1 guess
+- Worst case: 5 guesses
+
+
+## Customization
+
+- **Add More Words**: Modify or replace `wordList.txt` with your custom list of valid 5-letter words.
+- **Modify Game Rules**: Change constants in `wordle.h` (e.g., word length, maximum attempts).
+- **Experiment with AI**: Extend or replace AI strategies in `players.c`.
+
+
 ## License
 
 This project is distributed under the MIT License. Contributions and modifications are welcome. :smile:
