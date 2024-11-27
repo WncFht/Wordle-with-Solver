@@ -31,7 +31,7 @@ char* player_entropy(const char lastResult[WORD_LENGTH + 1]);
  * @param lastResult Previous guess feedback
  * @return Word that minimizes maximum possible solutions
  */
-char* player_minmax(const char lastResult[WORD_LENGTH + 1]);
+char* player_minimax(const char lastResult[WORD_LENGTH + 1]);
 
 /**
  * Letter frequency based strategy

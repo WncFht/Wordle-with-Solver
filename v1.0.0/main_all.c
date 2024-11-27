@@ -72,7 +72,7 @@ int main() {
     int total_guesses = 0;
     int successful_tests = 0;
     
-    Player player = player_frequency;
+    Player player = player_entropy;
     printf("\nStarting full test with %d solutions...\n\n", solutionCount);
     
     clock_t start_time = clock();  // 记录开始时间

@@ -482,32 +482,24 @@ char* player_entropy(const char lastResult[WORD_LENGTH + 1]) {
             generate_pattern_counts(wordList[i], pattern_counts);
             float entropy = calculate_entropy(pattern_counts);
             
-            // Optimize: Consider letter position matches
-            if (lastResult && *lastResult) {
-                float position_bonus = 0.0f;
-                for (int j = 0; j < WORD_LENGTH; j++) {
-                    if (lastResult[j] == 'G' && wordList[i][j] == last_guess[j]) {
-                        position_bonus += 0.3f;  // Bonus for confirmed positions
-                    }
-                    if (lastResult[j] == 'Y' && wordList[i][j] != last_guess[j]) {
-                        for (int k = 0; k < WORD_LENGTH; k++) {
-                            if (k != j && wordList[i][k] == last_guess[j]) {
-                                position_bonus += 0.2f;  // Bonus for known letters in new positions
-                                break;
-                            }
-                        }
-                    }
-                }
-                entropy += position_bonus;
-            }
-            
-            // Bonus for words in possible solution set
+            float solution_entropy_sum = 0.0f; // 解集中单词的总熵
+            int in_solution = 0;              // 是否属于解集的标志
+
+            // 遍历单词表计算解集中熵的总和
             for (int j = 0; j < solution_count; j++) {
                 if (strcmp(wordList[i], possible_solutions[j]) == 0) {
-                    entropy += 0.1f;
+                    in_solution = 1;
+                    solution_entropy_sum += entropy;
                     break;
                 }
             }
+
+            // 根据是否在解集中调整熵
+            if (in_solution) {
+                float solution_factor = entropy / solution_entropy_sum; // 单词在解集中熵的占比
+                entropy *= (1.0f + solution_factor); // 放大熵值
+            }
+
             
             if (entropy > max_entropy) {
                 max_entropy = entropy;

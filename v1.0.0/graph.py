@@ -60,7 +60,7 @@ add_labels(bars1)
 add_labels(bars2)
 
 plt.tight_layout()
-plt.savefig('guess_distribution.pdf', format='pdf', bbox_inches='tight')
+plt.savefig('guess_distribution.png', format='png', bbox_inches='tight')
 plt.show()
 
 # Radar chart
@@ -114,5 +114,5 @@ plt.legend(bbox_to_anchor=(1.02, 1), loc='upper left')
 
 
 plt.tight_layout()
-plt.savefig('performance_metrics.pdf', format='pdf', bbox_inches='tight')
+plt.savefig('performance_metrics.png', format='png', bbox_inches='tight')
 plt.show()
